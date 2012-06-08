@@ -66,8 +66,8 @@ class CliSetup extends CommandLine
 		{
 			$this->load($mod);
 		}
-		$this->load(array('name' => 'id', 'file' => PLATFORM_PATH . 'id-module.php', 'class' => 'IdentityModule'), null);
-		$this->load(array('name' => 'store', 'file' => PLATFORM_PATH . 'store-module.php', 'class' => 'StoreModule'), null);		
+		$this->load(array('name' => 'id', 'file' => PLATFORM_FRAMEWORK . 'id-module.php', 'class' => 'IdentityModule'), null);
+		$this->load(array('name' => 'store', 'file' => PLATFORM_FRAMEWORK . 'store-module.php', 'class' => 'StoreModule'), null);		
 		foreach($this->modules as $k => $mod)
 		{
 			$this->processSetup($k);
