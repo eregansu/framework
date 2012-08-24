@@ -45,7 +45,7 @@ class Template
 		}
 		$this->request = $req;
 		$this->skin = $this->fallback($skin, defined('DEFAULT_SKIN') ? DEFAULT_SKIN : '', $fallbackSkin, 'default');
-		$this->theme = $this->fallback($theme, defined('DEFAULT_THEME') ? DEFAULT_THEME : '', $fallbackTheme, 'default');
+		$this->theme = $this->fallback($theme, defined('DEFAULT_THEME') ? DEFAULT_THEME : '', $fallbackTheme, $this->skin);
 		$this->reset();
 		$this->filename = $filename;
 		$this->path = $this->vars['skin_path'] . $filename;
