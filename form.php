@@ -37,15 +37,20 @@ class Form implements ArrayAccess
 	public $includeHiddenFields = null;
 	public $action = null;
 	public $errorCount = 0;
-	public $method = 'POST';
-	public $prefix;
+	public $valueCount = 0;
+	public $method;
+	public $prefix = '';
 	public $notices = array();
 	public $errors = array();
 
-	public function __construct($name)
+	public function __construct($name = null, $method = 'POST')
 	{
-		$this->name = $name;
-		$this->prefix = $name . '_';
+		if(strlen($name))
+		{
+			$this->name = $name;
+			$this->prefix = $name . '_';
+		}
+		$this->method = $method;
 	}
 	
 	public function values()
@@ -65,6 +70,7 @@ class Form implements ArrayAccess
 	{
 		$this->action = null;
 		$this->errorCount = 0;
+		$this->valueCount = 0;
 		if($this->method == 'GET')
 		{
 			$data = $req->query;
@@ -89,7 +95,11 @@ class Form implements ArrayAccess
 				if(is_array($fv) || strlen($fv))
 				{
 					$this->fields[$k]['rawValue'] = $fv;
-					if(!$this->process($fv, $this->fields[$k]))
+					if($this->process($fv, $this->fields[$k]))
+					{
+						$this->valueCount++;
+					}
+					else
 					{
 						$this->fields[$k]['error'] = true;
 						$this->errorCount++;
@@ -459,6 +469,22 @@ class Form implements ArrayAccess
 				$info['htmlSuffix'] = '';
 			}
 		}
+		if(isset($info['size']))
+		{
+			$info['size'] = intval($info['size']);
+			if($info['size'] < 1)
+			{
+				$info['size'] = 0;
+			}
+		}
+		if(isset($info['maxlength']))
+		{
+			$info['maxlength'] = intval($info['maxlength']);
+			if($info['maxlength'] < 1)
+			{
+				$info['maxlength'] = 0;
+			}
+		}
 	}
 	
 	/**
@@ -515,8 +541,17 @@ class Form implements ArrayAccess
 	 */	
 	protected function renderText(&$buf, $req, $info)
 	{
-		$this->renderVisible($buf, $req, $info,
-			'<input id="' . $info['htmlId'] . '" type="' . $info['type'] . '" name="' . $info['htmlName'] . '" value="' . _e($info['value']) . '"' . $info['htmlSuffix'] . ' />');
+		$str = '<input id="' . $info['htmlId'] . '" type="' . $info['type'] . '" name="' . $info['htmlName'] . '" value="' . _e($info['value']) . '"' . $info['htmlSuffix'];
+		if(!empty($info['size']))
+		{
+			$str .= ' size="' . $info['size'] . '"';
+		}
+		if(!empty($info['maxlength']))
+		{
+			$str .= ' maxlength="' . $info['maxlength'] . '"';
+		}
+		$str .= ' />';
+		$this->renderVisible($buf, $req, $info, $str);							 
 	}
 
 	/**
