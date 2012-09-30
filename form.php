@@ -418,6 +418,10 @@ class Form implements ArrayAccess
 	 */
 	protected function preprocess(&$info)
 	{
+		if(isset($info['preserve']) && empty($info['preserve']))
+		{
+			unset($info['value']);
+		}
 		if(!isset($info['value']))
 		{
 			if(isset($info['defaultValue']))
@@ -550,8 +554,16 @@ class Form implements ArrayAccess
 		{
 			$str .= ' maxlength="' . $info['maxlength'] . '"';
 		}
+		if(strlen(@$info['min']))
+		{
+			$str .= ' min="' . _e($info['min']) . '"';
+		}
+		if(strlen(@$info['max']))
+		{
+			$str .= ' max="' . _e($info['max']) . '"';
+		}
 		$str .= ' />';
-		$this->renderVisible($buf, $req, $info, $str);							 
+		$this->renderVisible($buf, $req, $info, $str);
 	}
 
 	/**
