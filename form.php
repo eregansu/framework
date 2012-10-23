@@ -1,6 +1,6 @@
 <?php
 
-/* Copyright 2009-2011 Mo McRoberts
+/* Copyright 2009-2012 Mo McRoberts
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -13,16 +13,6 @@
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
- */
-
-/**
- * @framework EregansuCore Eregansu Core Library
- * @author Mo McRoberts <mo.mcroberts@nexgenta.com>
- * @year 2009, 2010, 2011
- * @copyright Mo McRoberts
- * @include uses('form');
- * @sourcebase http://github.com/nexgenta/eregansu/blob/master/
- * @since Available in Eregansu 1.0 and later. 
  */
  
 /**
@@ -233,6 +223,12 @@ class Form implements ArrayAccess
 		}
 		$info['value'] = $value;
 		return $success;
+	}
+
+	public function label($caption)
+	{
+		$info = array('name' => 'label' . count($this->fields), 'type' => 'label', 'label' => $caption);
+		$this->field($info);
 	}
 	
 	public function field($info)
@@ -501,6 +497,18 @@ class Form implements ArrayAccess
 		{
 			$class .= ' unlabelled';
 		}
+		if(!isset($info['escapeLabel']))
+		{
+			$info['escapeLabel'] = true;
+		}
+		if($info['escapeLabel'])
+		{
+			$label = _e($info['label']);
+		}
+		else
+		{
+			$label = $info['label'];
+		}
 		$buf[] = '<div class="' . $class . '" id="f-' . $info['htmlId'] . '">';
 		$pre = $aft = null;
 		if(isset($info['label']) && (empty($info['after']) || !empty($info['contains'])))
@@ -508,7 +516,7 @@ class Form implements ArrayAccess
 			$pre = '<label for="' . $info['htmlId'] . '">';
 			if(empty($info['after']))
 			{
-				$pre .= _e($info['label']) . '&nbsp';
+				$pre .= $label . '&nbsp;';
 			}
 			if(empty($info['contains']))
 			{
@@ -523,12 +531,20 @@ class Form implements ArrayAccess
 			}
 			if(!empty($info['after']))
 			{
-				$aft .= '&nbsp;' . _e($info['label']);
+				$aft .= '&nbsp;' . $label;
 			}
 			$aft .= '</label>';
 		}
-		$buf[] = $pre . $el . $aft;
-
+		if(isset($info['prefix']))
+		{
+			$pre = $info['prefix'] . $pre;
+		}
+		if(isset($info['suffix']))
+		{
+			$aft .= $info['suffix'];
+		}
+		$buf[] = $pre . '<span class="c">' . @$info['controlPrefix'] . $el . @$info['controlSuffix'] . '</span>' . $aft;
+		
 		$buf[] = '</div>';
 	}
 	
