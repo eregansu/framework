@@ -463,7 +463,7 @@ class App extends Router
 		if(!isset($this->sapi['cli']['help']))
 		{
 			$this->sapi['cli']['help'] = $help;
-		}		
+		}
 	}
 	
 	public function process(Request $req)
@@ -513,14 +513,6 @@ class DefaultApp extends App
 		if(!isset($this->sapi['cli']['help']))
 		{
 			$this->sapi['cli']['help'] = $help;
-		}
-		if(!isset($this->sapi['cli']['setup']))
-		{
-			$this->sapi['cli']['setup'] = array('file' => PLATFORM_FRAMEWORK . 'cli.php', 'class' => 'CliSetup', 'fromRoot' => true);
-		}
-		if(!isset($this->sapi['cli']['silk']))
-		{
-			$this->sapi['cli']['silk'] = array('file' => PLATFORM_ROOT . 'silk/app.php', 'class' => 'Silk', 'fromRoot' => true);
 		}
 	}
 }
