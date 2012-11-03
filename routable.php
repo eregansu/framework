@@ -558,8 +558,9 @@ class Proxy extends Router
 	public $request;
 	public $proxyUri;
 	protected $supportedTypes = array();
-	protected $supportedMethods = array('GET','HEAD');
-	protected $noFallThroughMethods = array('GET', 'HEAD', '__CLI__', '__MQ__');
+	protected $supportedMethods = array('OPTIONS', 'GET', 'HEAD');
+	protected $noFallThroughMethods = array('OPTIONS', 'GET', 'HEAD', '__CLI__', '__MQ__');
+	protected $negotiateMethods = array('HEAD', 'GET', 'POST', 'PUT');
 	protected $object = null;
 	protected $sessionObject = null;
 	protected $sendNegotiateHeaders = true;
@@ -575,6 +576,10 @@ class Proxy extends Router
 			$this->sessionObject = null;
 			return false;
 		}
+		/* We always perform content negotiation; however, for those methods
+		 * which do not appear in $this->negotiateMethods, a failure to
+		 * negotiate a type is ignored.
+		 */
 		$r = $req->negotiate($this->supportedMethods, $this->supportedTypes);
 		if(is_array($r))
 		{
@@ -586,6 +591,10 @@ class Proxy extends Router
 					$req->header($k, $value);
 				}
 			}
+		}
+		else if(!in_array($method, $this->negotiateMethods))
+		{
+			$type = '*/*';
 		}
 		else
 		{
