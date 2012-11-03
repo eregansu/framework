@@ -670,9 +670,13 @@ class Proxy extends Router
 
 	protected function perform_OPTIONS($type)
 	{
-		$this->request->header('Allow', implode(' ', $this->supportedMethods));
+		$this->request->header('Allow', implode(',', $this->supportedMethods));
 		$this->request->header('Content-length', 0);
 		$this->request->header('Content-type');
+		if(in_array('PROPFIND', $this->supportedMethods))
+		{
+			$this->request->header('DAV', 1);
+		}
 		return false;
 	}
 	
