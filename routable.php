@@ -564,12 +564,21 @@ class Proxy extends Router
 	protected $object = null;
 	protected $sessionObject = null;
 	protected $sendNegotiateHeaders = true;
+	protected $swallowIndex = true;
+	protected $negotiatedType = null;
 
 	protected function unmatched(Request $req)
 	{
 		$this->request = $req;
 		$this->proxyUri = $this->request->pageUri;
 		$method = $req->method;
+		/* If the last element in $req->params[] is the index resource name (usually
+		 * 'index'), silently ignore it unless $this->swallowIndex is false.
+		 */
+		if($this->swallowIndex && ($n = count($req->params)) && !strcmp($req->params[$n - 1], INDEX_RESOURCE_NAME)
+		{
+			array_pop($req->params);
+		}
 		if(!$this->getObject())
 		{
 			$this->request = null;
@@ -581,6 +590,7 @@ class Proxy extends Router
 		 * negotiate a type is ignored.
 		 */
 		$r = $req->negotiate($this->supportedMethods, $this->supportedTypes);
+		$this->negotiatedType = $req->negotiatedType;
 		if(is_array($r))
 		{
 			$type = $r['Content-Type'];
