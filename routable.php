@@ -888,6 +888,321 @@ class Proxy extends Router
 	{
 	}
 	
+	protected function perform_PROPFIND($type)
+	{
+		if(($r = $this->request->consume()) !== null)
+		{
+			return $this->error(Error::OBJECT_NOT_FOUND);
+		}
+		if(!isset($this->request->data['davCollection']))
+		{
+			$this->request->data['davCollection'] = $this->davCollection;
+		}
+		$this->request->postData = file_get_contents('php://input');		
+		try
+		{
+			$doc = new DOMDocument();
+			$doc->loadXML($this->request->postData);
+		}
+		catch(Exception $e)
+		{
+			return $this->error(Error::BAD_REQUEST, null, null, $e);
+		}
+		$root = $doc->firstChild;
+		$name = URI::qualify($root);
+		if(strcmp($name, 'DAV:propfind'))
+		{
+			return $this->error(Error::BAD_REQUEST, null, null, 'Root element is not DAV:propfind');
+		}
+		$properties = array();
+		for($c = $root->firstChild; $c !== null; $c = $c->nextSibling)
+		{
+			if(!($c instanceof DOMElement))
+			{
+				continue;
+			}
+			$name = URI::qualify($c);
+			if(!strcmp($name, 'DAV:allprop'))
+			{
+				$properties = array('*');
+				break;
+			}
+			if(!strcmp($name, 'DAV:prop'))
+			{
+				for($pc = $c->firstChild; $pc !== null; $pc = $pc->nextSibling)
+				{
+					if(!($pc instanceof DOMElement))
+					{
+						continue;
+					}
+					$properties[] = URI::qualify($pc);
+				}
+			}				
+		}
+		$depth = array();
+		if(isset($this->request->headers['Depth']))
+		{
+			$depth = explode(',', $this->request->headers['Depth']);
+		}
+		if(!count($depth))
+		{
+			$depth = array('undefined');
+		}		
+		$this->request->header('Status', 'HTTP/1.1 207 Multi-Status');
+		$this->request->header('Content-Type', 'text/xml');
+		writeLn('<?xml version="1.0" encoding="UTF-8" ?>');
+		writeLn('<dav:multistatus xmlns:dav="DAV:">');
+		$propList = array();
+		$rootProps = null;
+		if(!in_array('noroot', $depth))
+		{
+			$rootProps = $this->davPropTranslate(null, $this->request->data, $properties);
+		}
+		if((in_array('1', $depth) || in_array('infinite', $depth)) &&
+		   !empty($this->request->data['davCollection']))
+		{
+			$propList = $this->davPropAlternates($properties);
+		}
+		if($rootProps !== null)
+		{
+			$propList[''] = $rootProps;
+		}
+		if(strlen($this->request->explicitSuffix))
+		{
+			/* Just emit the information for this one specific resource */
+			if(isset($propList[$this->request->explicitSuffix]))
+			{				
+				$this->davPropEmit($this->request->pageUri . INDEX_RESOURCE_NAME . $this->request->explicitSuffix, $propList[$this->request->explicitSuffix], $properties);
+			}
+			else
+			{
+				writeLn('<dav:response>');
+				writeLn('<dav:href>' . _e($this->request->pageUri . INDEX_RESOURCE_NAME . $this->request->explicitSuffix) . '</dav:href>');
+				writeLn('<dav:propstat>');
+				writeLn('<dav:status>404 Not Found</dav:status>');
+				writeLn('</dav:propstat>');
+				writeLn('</dav:response>');
+			}
+		}
+		else
+		{
+			foreach($propList as $key => $info)
+			{
+				if(!empty($info['_hide']))
+				{
+					continue;
+				}
+				$href = (strlen($key) ? ($this->request->pageUri . INDEX_RESOURCE_NAME . $key) : $this->request->pageUri);
+				$this->davPropEmit($href, $info, $properties);
+			}
+			$this->davPropChildren($properties);
+		}
+		writeLn('</dav:multistatus>');
+		$this->request->complete();
+	}
+	
+	/* Emit a set of DAV properties */
+	protected function davPropEmit($resource, $properties, $requested)
+	{
+		writeLn('<dav:response>');
+		writeLn('<dav:href>' . _e($resource) . '</dav:href>');
+		writeLn('<dav:propstat>');
+		
+		writeLn('<dav:prop>');
+		$allprop = in_array('*', $requested);
+		foreach($properties as $prop => $value)
+		{
+			if(!$allprop && !in_array($prop, $requested))
+			{
+				continue;
+			}
+			$el = URI::contractUri($prop, true, true);
+			$inner = '';
+			if(!strcmp($el['ns'], 'DAV:'))
+			{
+				$xmlns = '';
+				$el['prefix'] = 'dav';
+				$el['qname'] = 'dav:' . $el['local'];
+			}
+			else
+			{
+				$xmlns = ' xmlns:' . $el['prefix'] . '="' . _e($el['ns']) . '"';
+			}
+			if(is_array($value))
+			{
+				$vel = URI::contractUri($value['@'], true, true);
+				if(!strcmp($vel['ns'], $el['ns']))
+				{
+					$vxmlns = '';
+					$vel['prefix'] = $el['prefix'];
+					$vel['qname'] = $el['prefix'] . ':' . $vel['local'];
+				}
+				else if(!strcmp($vel['ns'], 'dav:'))
+				{
+					$vxmlns = '';
+					$vel['prefix'] = 'dav';
+					$vel['qname'] = 'dav:' . $vel['local'];
+				}
+				else
+				{
+					$vxmlns = ' xmlns:' . $vel['prefix'] . '="' . _e($vel['ns']) . '"';
+				}
+				$inner = '<' . $vel['qname'] . $vxmlns . ' />';
+			}
+			else
+			{
+				$inner = _e($value);
+			}
+			writeLn('<' . $el['qname'] . $xmlns . '>' . $inner . '</' . $el['qname'] . '>');
+		}
+		writeLn('</dav:prop>');
+		writeLn('<dav:status>200 OK</dav:status>');
+		writeLn('</dav:propstat>');
+		writeLn('</dav:response>');
+	}
+	
+	/* Translate and return the DAV properties for our various alternates */
+	protected function davPropAlternates($properties, $types = null, $uri = null)
+	{
+		if($types === null)
+		{
+			$types = $this->supportedTypes;
+		}
+		if($uri === null)
+		{
+			$uri = $this->request->resource;
+		}
+		$propList = array();
+		foreach($types as $k => $value)
+		{
+			if(is_array($value))
+			{
+				if(!isset($value['q']))
+				{
+					$value['q'] = 1;
+				}
+				if(!isset($value['type']))
+				{
+					$value['type'] = $k;
+				}
+			}
+			else
+			{
+				$value = array('q' => 1, 'type' => $value);
+			}
+			if(isset($value['ext']))
+			{
+				$l = $uri . '.' . $value['ext'];
+				$value['_href'] = $l;
+				$key = '.' . $value['ext'];
+			}
+			else
+			{
+				$e = MIME::extForType($value['type']);
+				if(strlen($e))
+				{
+					$l = $uri . $e;
+					$value['_href'] = $l;
+					$key = $e;
+				}
+				else
+				{
+					continue;
+				}
+			}
+			$propList[$key] = $this->davPropTranslate($value['_href'], $value, $properties);
+		}
+		return $propList;
+	}
+
+	/* Emit the DAV properties for any children of this collection */
+	protected function davPropChildren($properties)
+	{
+		foreach($this->routes as $name => $info)
+		{
+			if(substr($name, 0, 2) == '__')
+			{
+				continue;
+			}
+			if(isset($info['davHide']))
+			{
+				if(!empty($info['davHide']))
+				{
+					continue;
+				}
+			}
+			else if(!empty($info['hide']))
+			{
+				continue;
+			}
+			if(empty($info['davCollection']) && isset($info['supportedTypes']))
+			{
+				$propList = $this->davPropAlternates($properties, $info['supportedTypes'], $this->request->pageUri . $name);
+				foreach($propList as $type => $props)
+				{					
+					if(!empty($props['_hide']))
+					{
+						continue;
+					}
+					$this->davPropEmit($props['_href'], $props, $properties);
+				}
+			}
+			else
+			{
+				$propList = $this->davPropTranslate($name, $info, $properties);
+				$this->davPropEmit($name, $propList, $properties);
+			}
+		}
+	}
+
+	/* Translate internal data into DAV properties */
+	protected function davPropTranslate($resource, $data, $requested = null)
+	{
+		$props = array();
+		/* The '_href' and '_hide' properties are used internally */
+		if(isset($data['_href']))
+		{
+			$props['_href'] = $data['_href'];
+		}
+		if(isset($data['davHide']))
+		{
+			$props['_hide'] = $data['davHide'];
+		}
+		else if(!empty($data['hide']))
+		{
+			$props['_hide'] = $data['hide'];
+		}
+		if(!empty($data['davCollection']))
+		{
+			$props['DAV:resourcetype'] = array('@' => 'DAV:collection');
+		}
+		if(isset($data['title']))
+		{
+			$props['DAV:displayname'] = $data['title'];
+		}
+		if(isset($data['type']))
+		{
+			$props['DAV:getcontenttype'] = $data['type'];
+		}
+		if(isset($data['size']))
+		{
+			$props['DAV:getcontentlength'] = $data['size'];
+		}
+		if(isset($data['etag']))
+		{
+			$props['DAV:getetag'] = $data['etag'];
+		}
+		if(isset($data['modified']))
+		{
+			$props['DAV:getlastmodified'] = strftime('%a, %d %b %Y %H:%M:%S GMT', strtotime($data['modified']));		
+		}
+		if(isset($data['created']))
+		{
+			$props['DAV:getcreationdate'] = strftime('%Y-%m-%dT%H:%M:%SZ', strtotime($data['created']));		
+		}
+		return $props;
+	}
+
 	public function __get($name)
 	{
 		if($name == 'session')
