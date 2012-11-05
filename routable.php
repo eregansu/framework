@@ -575,7 +575,7 @@ class Proxy extends Router
 		/* If the last element in $req->params[] is the index resource name (usually
 		 * 'index'), silently ignore it unless $this->swallowIndex is false.
 		 */
-		if($this->swallowIndex && ($n = count($req->params)) && !strcmp($req->params[$n - 1], INDEX_RESOURCE_NAME)
+		if($this->swallowIndex && ($n = count($req->params)) && !strcmp($req->params[$n - 1], INDEX_RESOURCE_NAME))
 		{
 			array_pop($req->params);
 		}
