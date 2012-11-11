@@ -102,6 +102,11 @@ class Form implements ArrayAccess
 					$this->errorCount++;
 				}
 			}
+			else
+			{
+				$f['error'] = true;
+				$this->errorCount++;
+			}
 		}
 		if($this->errorCount)
 		{
