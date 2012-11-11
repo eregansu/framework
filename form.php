@@ -25,6 +25,10 @@ class Form implements ArrayAccess
 	protected $actions = array(); /**< @internal */
 	protected $name = 'form'; /**< @internal */
 	public $includeHiddenFields = null;
+	/* Set this to something non-null to force processing of the submission
+	 * even if no action was present in the data.
+	 */
+	public $defaultAction = null;
 	public $action = null;
 	public $errorCount = 0;
 	public $valueCount = 0;
@@ -58,12 +62,12 @@ class Form implements ArrayAccess
 
 	public function checkSubmission($req)
 	{
-		$this->action = null;
+		$this->action = $this->defaultAction;
 		$this->errorCount = 0;
 		$this->valueCount = 0;
 		if($this->method == 'GET')
 		{
-			$data = $req->query;
+			$data = $req->query;			
 		}
 		else
 		{
@@ -91,24 +95,33 @@ class Form implements ArrayAccess
 					}
 					else
 					{
-						$this->fields[$k]['error'] = true;
+						if($this->action !== null)
+						{
+							$this->fields[$k]['error'] = true;
+						}
 						$this->errorCount++;
 					}
 					
 				}
 				else if(!empty($f['required']))
 				{
-					$f['error'] = true;
+					if($this->action !== null)
+					{
+						$this->fields[$k]['error'] = true;
+					}
 					$this->errorCount++;
 				}
 			}
 			else
 			{
-				$f['error'] = true;
+				if($this->action !== null)
+				{
+					$this->fields[$k]['error'] = true;
+				}
 				$this->errorCount++;
 			}
 		}
-		if($this->errorCount)
+		if($this->errorCount || $this->action === null)
 		{
 			return false;
 		}
@@ -331,6 +344,24 @@ class Form implements ArrayAccess
 		}
 		if(!$multiple) $buf[] = '</form>';
 		return implode("\n", $buf);
+	}
+
+	public function error($field, $message)
+	{
+		$this->errors[] = $message;
+		if($field !== null && isset($this->fields[$field]))
+		{
+			$this->field[$field]['error'] = true;
+		}
+	}
+
+	public function notice($field, $message)
+	{
+		$this->notice[] = $message;
+		if($field !== null && isset($this->fields[$field]))
+		{
+			$this->field[$field]['notice'] = true;
+		}
 	}
 
 	protected function renderField(&$buf, $req, &$field)
