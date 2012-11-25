@@ -368,7 +368,7 @@ class Router extends Routable
 		}
 		if(!isset($route['class']) || !class_exists($route['class']))
 		{
-			return $this->error(Error::NOT_IMPLEMENTED, $req, null, 'Class ' . $route['class'] . ' is not implemented in ' . (isset($f) ? $f : " current context"));
+			return $this->error(Error::NOT_IMPLEMENTED, $req, null, 'Class ' . @$route['class'] . ' is not implemented in ' . (isset($f) ? $f : " current context"));
 		}
 		$target = new $route['class']();
 		if(!$target instanceof IRequestProcessor)
