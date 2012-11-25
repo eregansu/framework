@@ -44,7 +44,7 @@ if(defined('WP_CONTENT_URL') && defined('ABSPATH'))
 	define('CONFIG_ROOT', INSTANCE_ROOT . 'config/');
 	define('PLATFORM_ROOT', INSTANCE_ROOT . 'eregansu/');
 	define('PLATFORM_LIB', PLATFORM_ROOT . 'lib/');
-	define('PLATFORM_PATH', PLATFORM_ROOT . 'platform/');
+	define('PLATFORM_FRAMEWORK', PLATFORM_ROOT . 'framework/');
 	define('MODULES_ROOT', INSTANCE_ROOT . 'app/');
 	
 	global $MODULE_ROOT;
@@ -79,14 +79,14 @@ if(!function_exists('uses'))
 			}
 			else
 			{
-				require_once(PLATFORM_PATH . $_mod . '.php');
+				require_once(PLATFORM_FRAMEWORK . $_mod . '.php');
 			}
 		}
 	}
 }
 
 /* Initialise the core library */
-require_once(dirname(__FILE__) . '/lib/common.php');
+require_once(dirname(__FILE__) . '/../lib/common.php');
 
 if(defined('EREGANSU_MINIMAL_CORE'))
 {
@@ -147,10 +147,10 @@ require_once(PLATFORM_LIB . 'request.php');
 require_once(PLATFORM_LIB . 'session.php');
 require_once(PLATFORM_LIB . 'uri.php');
 
-require_once(PLATFORM_PATH . 'routable.php');
-require_once(PLATFORM_PATH . 'page.php');
-require_once(PLATFORM_PATH . 'template.php');
-require_once(PLATFORM_PATH . 'error.php');
+require_once(PLATFORM_FRAMEWORK . 'routable.php');
+require_once(PLATFORM_FRAMEWORK . 'page.php');
+require_once(PLATFORM_FRAMEWORK . 'template.php');
+require_once(PLATFORM_FRAMEWORK . 'error.php');
 
 /* Our global event sink: at the moment just used to implement a callback from
  * the request class which fires when the session has been initialised.
@@ -218,4 +218,4 @@ Observers::observe('sessionInitialised', array('PlatformRequestObserver', 'sessi
 $request = Request::requestForSAPI();
 
 /* Create the initial app instance */
-$app = App::initialApp();
+$app = App::initialApp($request->sapi);
