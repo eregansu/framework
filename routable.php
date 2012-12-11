@@ -579,11 +579,11 @@ class Proxy extends Router
 		{
 			array_pop($req->params);
 		}
-		if(!$this->getObject())
+		if(($r = $this->getObject()) !== true)
 		{
 			$this->request = null;
 			$this->sessionObject = null;
-			return false;
+			return $r;
 		}
 		/* We always perform content negotiation; however, for those methods
 		 * which do not appear in $this->negotiateMethods, a failure to
