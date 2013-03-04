@@ -351,7 +351,7 @@ class Form implements ArrayAccess
 		$this->errors[] = $message;
 		if($field !== null && isset($this->fields[$field]))
 		{
-			$this->field[$field]['error'] = true;
+			$this->fields[$field]['error'] = true;
 		}
 	}
 
@@ -360,7 +360,7 @@ class Form implements ArrayAccess
 		$this->notice[] = $message;
 		if($field !== null && isset($this->fields[$field]))
 		{
-			$this->field[$field]['notice'] = true;
+			$this->fields[$field]['notice'] = true;
 		}
 	}
 
@@ -537,6 +537,14 @@ class Form implements ArrayAccess
 		{
 			$info['escapeLabel'] = true;
 		}
+		if(!empty($info['error']))
+		{
+			$class .= ' error';
+		}
+		if(!empty($info['required']))
+		{
+			$class .= ' required-field';
+		}
 		if($info['escapeLabel'])
 		{
 			$label = _e($info['label']);
@@ -633,8 +641,17 @@ class Form implements ArrayAccess
 	 */
 	protected function renderTextArea(&$buf, $req, $info)
 	{
-		$this->renderVisible($buf, $req, $info,
-			'<textarea id="' . $info['htmlId'] . '" type="text" name="' . $info['htmlName'] . '">' . _e($info['value']) . '</textarea>' . $info['htmlSuffix']);
+		$html = '<textarea id="' . $info['htmlId'] . '" type="text" name="' . $info['htmlName'] . '"';
+		if(isset($info['rows']))
+		{
+			$html .= ' rows="' . _e($info['rows']) . '"';
+		}
+		if(isset($info['cols']))
+		{
+			$html .= ' cols="' . _e($info['cols']) . '"';
+		}
+		$html .= '>' . _e($info['value']) . '</textarea>' . $info['htmlSuffix'];
+		$this->renderVisible($buf, $req, $info, $html);
 	}
 
 	/**
