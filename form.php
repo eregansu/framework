@@ -112,7 +112,7 @@ class Form implements ArrayAccess
 					$this->errorCount++;
 				}
 			}
-			else
+			else if(!empty($f['required']))
 			{
 				if($this->action !== null)
 				{
