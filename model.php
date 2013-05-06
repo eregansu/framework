@@ -95,3 +95,136 @@ class Model
 		}
 	}
 }
+
+/* ObjectSet encapsulates an array (or another IDataset) */
+abstract class ObjectSet implements IDataset, ISerialisable
+{
+	protected $list;
+	protected $model;
+	protected $instanceClass;
+	protected $current;
+	public $total = 0;
+	
+	public function __construct($list = null, $model = null)
+	{
+		$this->list = $list;
+		$this->model = $model;
+		if(is_object($list) && isset($list->total))
+		{
+			$this->total = $list->total;
+		}
+	}
+		
+	public function current()
+	{
+		return $this->current;
+	}
+	
+	protected function obtainCurrent()
+	{
+		if($this->list instanceof Iterator)
+		{
+			$this->current = $this->list->current();
+		}
+		else
+		{
+			$this->current = current($this->list);
+		}
+		if($this->current !== null && isset($this->instanceClass))
+		{
+			$class = $this->instanceClass;
+			$this->current = new $class($this->current);
+		}
+	}
+	
+	public function key()
+	{
+		if(isset($this->list))
+		{
+			if($this->list instanceof Iterator)
+			{
+				$k = $this->list->key();				
+			}
+			else
+			{
+				$k = key($this->list);
+			}
+			return $k;
+		}
+		return null;
+	}
+		
+	public function rewind()
+	{
+		$this->current = null;
+		if(isset($this->list))
+		{		
+			reset($this->list);
+			$this->obtainCurrent();
+		}
+		return false;
+	}
+	
+	public function next()
+	{
+		$this->current = null;
+		if(isset($this->list))
+		{
+			if($this->list instanceof Iterator)
+			{
+				$r = $this->list->next();
+			}
+			else
+			{
+				$r = next($this->list);
+			}
+		}
+		else
+		{
+			$r = false;
+		}
+		$this->obtainCurrent();
+		return $r;
+	}
+	
+	public function valid()
+	{
+		if(isset($this->list))
+		{
+			if($this->list instanceof Iterator)
+			{
+				return $this->list->valid();
+			}
+			return key($this->list) === null ? false : true;
+		}
+		return false;
+	}
+	
+	public function serialisations()
+	{
+		return array('application/json');
+	}
+	
+	public function serialise(&$mimeType, $returnBuffer = false, $request = null, $sendHeaders = null /* true if (!$returnBuffer && $request) */)
+	{
+		if($mimeType == 'application/json' || $mimeType == 'text/javascript')
+		{
+			$list = array();
+			foreach($this as $k => $v)
+			{
+				$list[$k] = $v;
+			}
+			if($request !== null && $sendHeaders)
+			{
+				$request->header('Content-type', $mimeType);
+			}
+			if($returnBuffer)
+			{
+				return json_encode($list);
+			}
+			echo json_encode($list);
+			return true;
+		}
+		return false;
+	}
+}
