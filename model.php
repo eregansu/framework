@@ -103,6 +103,8 @@ abstract class ObjectSet implements IDataset, ISerialisable
 	protected $model;
 	protected $instanceClass;
 	protected $current;
+	protected $serialiseJsonAsObject = false;
+
 	public $total = 0;
 	
 	public function __construct($list = null, $model = null)
@@ -133,7 +135,7 @@ abstract class ObjectSet implements IDataset, ISerialisable
 		if($this->current !== null && isset($this->instanceClass))
 		{
 			$class = $this->instanceClass;
-			$this->current = new $class($this->current);
+			$this->current = new $class($this->current, $this->model);
 		}
 	}
 	
@@ -207,22 +209,140 @@ abstract class ObjectSet implements IDataset, ISerialisable
 	
 	public function serialise(&$mimeType, $returnBuffer = false, $request = null, $sendHeaders = null /* true if (!$returnBuffer && $request) */)
 	{
+		if($returnBuffer)
+		{
+			ob_start();
+		}
+		$r = false;
 		if($mimeType == 'application/json' || $mimeType == 'text/javascript')
 		{
-			$list = array();
+			if($request !== null && $sendHeaders)
+			{
+				$request->header('Content-type', $mimeType);
+			}
+			echo $this->serialiseJsonAsObject ? '{' : '[';
+			$i = 0;
 			foreach($this as $k => $v)
 			{
-				$list[$k] = $v;
+				if($this->serialiseJsonAsObject)
+				{
+					echo ($i ? ',' : '') . '"' . addslashes($k) . '":';
+				}
+				else if($i)
+				{
+					echo ',';
+				}
+				$t = $mimeType;
+				if(!($v instanceof ISerialisable) || $v->serialise($t) === false)
+				{
+					echo json_encode($v);
+				}
+				$i++;
 			}
+			echo $this->serialiseJsonAsObject ? '}' : ']';
+			if($returnBuffer)
+			{
+				return ob_get_clean();
+			}
+			return true;
+		}
+		if($returnBuffer)
+		{
+			ob_end_clean();
+		}
+		return false;
+	}
+}
+
+/* ObjectInstance provides a base class for the encapsulation of data rows */
+abstract class ObjectInstance implements ArrayAccess, Countable, Iterator, ISerialisable
+{
+	protected $model;
+	protected $data;
+	
+	public function __construct($data = null, $model = null)
+	{
+		$this->data = $data;
+		$this->model = $model;
+	}
+		
+	/* ArrayAccess */
+	public function &offsetGet($k)
+	{
+		$nothing = null;
+		if(isset($this->data[$k]))
+		{
+			return $this->data[$k];
+		}
+		return $nothing;
+	}
+	
+	public function offsetExists($k)
+	{
+		return isset($this->data[$k]);
+	}
+	
+	public function offsetUnset($k)
+	{
+		unset($this->data[$k]);
+	}
+	
+	public function offsetSet($k, $v)
+	{
+		$this->data[$k] = $v;
+	}
+	
+	/* Countable */
+	public function count()
+	{
+		return count($this->data);
+	}
+	
+	/* Iterator */
+	public function current()
+	{
+		return current($this->data);
+	}
+	
+	public function key()
+	{
+		return key($this->data);
+	}
+	
+	public function next()
+	{
+		return next($this->data);
+	}
+	
+	public function rewind()	
+	{
+		return reset($this->data);
+	}
+	
+	public function valid()
+	{
+		return key($this->data) === null ? false : true;
+	}
+	
+	/* ISerialisable */
+	public function serialisations()
+	{
+		return array('application/json');
+	}
+	
+	public function serialise(&$mimeType, $returnBuffer = false, $request = null, $sendHeaders = null /* true if (!$returnBuffer && $request) */)
+	{
+		if($mimeType == 'application/json' || $mimeType == 'text/javascript')
+		{
 			if($request !== null && $sendHeaders)
 			{
 				$request->header('Content-type', $mimeType);
 			}
 			if($returnBuffer)
 			{
-				return json_encode($list);
+				return json_encode($this->data);
 			}
-			echo json_encode($list);
+			echo json_encode($this->data);
 			return true;
 		}
 		return false;
