@@ -566,7 +566,8 @@ class Proxy extends Router
 	protected $sendNegotiateHeaders = true;
 	protected $swallowIndex = true;
 	protected $negotiatedType = null;
-
+	protected $autoSupportedTypes = false;
+	
 	protected function unmatched(Request $req)
 	{
 		$this->request = $req;
@@ -589,6 +590,17 @@ class Proxy extends Router
 		 * which do not appear in $this->negotiateMethods, a failure to
 		 * negotiate a type is ignored.
 		 */
+		if($this->autoSupportedTypes)
+		{
+			if(is_object($this->object) && method_exists($this->object, 'serialisations'))
+			{
+				$this->addSupportedTypes($this->object->serialisations());
+			}
+			else if(is_object($this->objects) && method_exists($this->objects, 'serialisations'))
+			{
+				$this->addSupportedTypes($this->objects->serialisations());
+			}								
+		}
 		$r = $req->negotiate($this->supportedMethods, $this->supportedTypes);
 		$this->negotiatedType = $req->negotiatedType;
 		if(is_array($r))
@@ -631,6 +643,21 @@ class Proxy extends Router
 		$this->request = null;
 		$this->sessionObject = null;
 		return $r;
+	}
+	
+	protected function addSupportedTypes($serialisations)
+	{
+		foreach($serialisations as $key => $info)
+		{
+			if(is_numeric($key))
+			{
+				$this->supportedTypes[] = $info;
+			}
+			else
+			{
+				$this->supportedTypes[$key] = $info;
+			}
+		}
 	}
 	
 	protected function performMethod($method, $type)
@@ -805,7 +832,10 @@ class Proxy extends Router
 		}
 		else if(isset($this->objects))
 		{
-			echo json_encode($this->objects);
+			if(!($this->objects instanceof ISerialisable) || $this->objects->serialise($type) === false)
+			{
+				echo json_encode($this->objects);
+			}
 		}
 		echo $suffix;
 	}
