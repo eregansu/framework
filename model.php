@@ -206,6 +206,15 @@ abstract class ObjectSet implements IDataset, ISerialisable
 		return false;
 	}
 	
+	public function count()
+	{
+		if(isset($this->list))
+		{
+			return count($this->list);
+		}
+		return 0;
+	}
+	
 	public function serialisations()
 	{
 		return array('application/json');
