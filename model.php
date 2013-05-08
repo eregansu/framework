@@ -267,7 +267,7 @@ abstract class ObjectInstance implements ArrayAccess, Countable, Iterator, ISeri
 	}
 		
 	/* ArrayAccess */
-	public function &offsetGet($k)
+	public function offsetGet($k)
 	{
 		$nothing = null;
 		if(isset($this->data[$k]))
