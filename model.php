@@ -105,12 +105,16 @@ abstract class ObjectSet implements IDataset, ISerialisable
 	protected $current;
 	protected $serialiseJsonAsObject = false;
 
+	public $limit = 0;
+	public $offset = 0;
 	public $total = 0;
 	
-	public function __construct($list = null, $model = null)
+	public function __construct($list = null, $model = null, $offset = 0, $limit = 0)
 	{
 		$this->list = $list;
 		$this->model = $model;
+		$this->limit = $limit;
+		$this->offset = $offset;
 		if(is_object($list) && isset($list->total))
 		{
 			$this->total = $list->total;
