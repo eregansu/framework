@@ -559,6 +559,7 @@ class Proxy extends Router
 	public $proxyUri;
 	protected $supportedTypes = array();
 	protected $supportedMethods = array('OPTIONS', 'GET', 'HEAD');
+	protected $supportedLangs = null;
 	protected $noFallThroughMethods = array('OPTIONS', 'GET', 'HEAD', '__CLI__', '__MQ__');
 	protected $negotiateMethods = array('HEAD', 'GET', 'POST', 'PUT');
 	protected $object = null;
@@ -567,6 +568,7 @@ class Proxy extends Router
 	protected $swallowIndex = true;
 	protected $negotiatedType = null;
 	protected $autoSupportedTypes = false;
+	protected $negotiatedLang = null;
 	
 	protected function unmatched(Request $req)
 	{
@@ -601,8 +603,9 @@ class Proxy extends Router
 				$this->addSupportedTypes($this->objects->serialisations());
 			}								
 		}
-		$r = $req->negotiate($this->supportedMethods, $this->supportedTypes);
+		$r = $req->negotiate($this->supportedMethods, $this->supportedTypes, $this->supportedLangs);
 		$this->negotiatedType = $req->negotiatedType;
+		$this->negotiatedLang = $req->negotiatedLang;
 		if(is_array($r))
 		{
 			$type = $r['Content-Type'];

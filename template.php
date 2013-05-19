@@ -47,6 +47,10 @@ class Template
 		$this->skin = $this->fallback($skin, defined('DEFAULT_SKIN') ? DEFAULT_SKIN : '', $fallbackSkin, 'default');
 		$this->theme = $this->fallback($theme, defined('DEFAULT_THEME') ? DEFAULT_THEME : '', $fallbackTheme, $this->skin);
 		$this->reset();
+		if(strrchr($filename, '.') === false)
+		{
+			$filename .= (isset($req->negotiatedLang) ? '.' . $req->negotiatedLang['lang'] : '') . '.phtml';
+		}
 		$this->filename = $filename;
 		$this->path = $this->vars['skin_path'] . $filename;
 	}

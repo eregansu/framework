@@ -112,6 +112,7 @@ class Page extends Proxy
 		$this->vars['app_root'] = $this->request->base;
 		$this->vars['site_root'] = $this->request->root;
 		$this->vars['uri'] = $this->request->uri;
+		$this->vars['resourceUri'] = $this->request->resource;
 		$this->vars['pageUri'] = $this->request->pageUri;
 		$this->vars['proxyUri'] = $this->proxyUri;
 		$this->vars['request'] = $this->request;
@@ -119,6 +120,11 @@ class Page extends Proxy
 		$this->vars['crumb'] =& $this->request->crumb;
 		$this->vars['backRef'] =& $this->request->backRef;
 		$this->vars['page_title'] = $this->title;
+		$this->vars['negotiatedType'] = $this->negotiatedType;
+		$this->vars['negotiatedLang'] = $this->negotiatedLang;
+		$this->vars['lang'] = isset($this->negotiatedLang) ? $this->negotiatedLang['lang'] : null;
+		$this->vars['explicitExt'] = $this->request->explicitSuffix;
+		$this->vars['explicitLang'] = $this->request->explicitLang;
 		if($this->session)
 		{
 			$this->vars['qusid'] = $this->session->qusid;
