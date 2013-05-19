@@ -35,6 +35,9 @@ class Model
 {
 	protected static $instances = array();
 	protected $databases = array('db');
+	protected $setClass = null;
+	protected $queriesCalcRows = false;
+	
 	public $db;
 	
 	/**
@@ -94,10 +97,185 @@ class Model
 			}
 		}
 	}
+	
+	/**
+	 * Build a SQL (or similar) query from an array of query attributes
+	 */	
+	protected function buildQuery(&$qlist, &$tables, &$query)
+	{
+		/*
+		$tables['a'] = 'actualname';
+		foreach($query as $k => $value)
+		{
+			switch($k)
+			{
+				case 'id':
+					unset($query[$k]);
+					$qlist['a'][] = '"a"."id" = ' . $this->db->quote($value);
+					break;
+			}
+		}
+		*/
+	}
+	
+	/* Parse an ordering statement into a SQL (or similar) query */
+	protected function parseOrder(&$order, $key, $desc = true)
+	{
+		/*
+		$dir = $desc ? 'DESC' : 'ASC';
+		switch($key)
+		{
+			case 'created':
+				$order['a'][] = '"a"."created" ' . $dir;
+				return true;	
+		}
+		return false;
+		*/
+	}
+	
+	public function query($query)
+	{
+		if(!isset($this->db))
+		{
+			return null;
+		}
+		$tables = array();
+		$qlist = array();
+		$order = array();
+		$olist = array();
+		$tags = array();
+		$ord = array();
+		$ofs = $limit = 0;
+		if(isset($query['order']))
+		{
+			$ord = $query['order'];
+			unset($query['order']);
+			if(!is_array($ord))
+			{
+				$ord = explode(',', str_replace(' ', ',', $ord));
+			}
+		}
+		if(isset($query['offset']))
+		{
+			$ofs = intval($query['offset']);
+			unset($query['offset']);
+		}
+		if(isset($query['limit']))
+		{
+			$limit = intval($query['limit']);
+			unset($query['limit']);
+		}
+		$originalQuery = $query;
+		$this->buildQuery($qlist, $tables, $query);
+		$firstTable = null;
+		$firstTableName = null;
+		foreach($tables as $tkey => $table)
+		{
+			$firstTableName = $tkey;
+			$firstTable = $table;
+			break;
+		}
+		if($firstTableName === null)
+		{
+			return null;
+		}
+		foreach($ord as $o)
+		{
+			$o = trim($o);
+			if(!strlen($o)) continue;
+			$desc = true;
+			if(substr($o, 0, 1) == '-')
+			{
+				$desc = false;
+				$o = substr($o, 1);
+			}
+			if(!$this->parseOrder($order, $o, $desc))
+			{
+				trigger_error('Model::query(): Unknown ordering key ' . $o, E_USER_WARNING);
+			}
+		}
+		foreach($order as $table => $ref)
+		{
+			if(!isset($qlist[$table])) $qlist[$table] = array();
+			foreach($ref as $oo)
+			{
+				$olist[] = $oo;
+			}
+		}
+		$tlist = array();
+		$where = array();
+		if(is_array($firstTable))
+		{
+			$tname = $firstTable['name'];
+		}
+		else
+		{
+			$tname = $firstTable;
+		}
+		$tlist[$tname] = '{' . $tname . '} "' . $firstTableName . '"';
+		foreach($qlist as $table => $clauses)
+		{
+			if(is_array($tables[$table]))
+			{
+				$tname = $tables[$table]['name'];
+				$tjoin = $tables[$table]['clause'];
+			}
+			else
+			{
+				$tname = $tables[$table];
+				$tjoin = '"' . $table . '"."id" = "' . $firstTableName . '"."id"';
+			}
+			if(isset($tlist[$tname]))
+			{
+				continue;
+			}
+			$tlist[] = '{' . $tname . '} "' . $table . '"';
+			$where[] = $tjoin;
+			foreach($clauses as $c)
+			{
+				$where[] = $c;
+			}
+		}		
+		if(count($query))
+		{
+			foreach($query as $k => $v)
+			{
+				trigger_error('Model::query(): Unsupported query key ' . $k, E_USER_WARNING);
+			}
+		}
+		$what = array('"' . $firstTableName . '".*');
+		$qstr = 'SELECT ' . ($this->queriesCalcRows ? '/*!SQL_CALC_FOUND_ROWS*/ ' : '') . implode(', ', $what) . ' FROM ( ' . implode(', ', $tlist) . ' )';
+		if(count($where))
+		{
+			$qstr .= ' WHERE ' . implode(' AND ', $where);
+		}
+		if(count($olist))
+		{
+			$qstr .= ' ORDER BY ' . implode(', ', $olist);
+		}
+		if($limit)
+		{
+			if($ofs)
+			{
+				$qstr .= ' LIMIT ' . $ofs . ', ' . $limit;
+			}
+			else
+			{
+				$qstr .= ' LIMIT ' . $limit;
+			}
+		}
+		if(($rs = $this->db->query($qstr)))
+		{
+			$setClass = isset($this->setClass) ? $this->setClass : 'ObjectSet';
+			$inst = new $setClass($rs, $this, $ofs, $limit, $ord, $originalQuery);
+			return $inst;
+		}
+		return null;
+	}
 }
 
 /* ObjectSet encapsulates an array (or another IDataset) */
-abstract class ObjectSet implements IDataset, ISerialisable
+class ObjectSet implements IDataset, ISerialisable
 {
 	protected $list;
 	protected $model;
@@ -108,13 +286,23 @@ abstract class ObjectSet implements IDataset, ISerialisable
 	public $limit = 0;
 	public $offset = 0;
 	public $total = 0;
+	public $order = array();
+	public $params = array();
 	
-	public function __construct($list = null, $model = null, $offset = 0, $limit = 0)
+	public function __construct($list = null, $model = null, $offset = 0, $limit = 0, $order = null, $params = null)
 	{
 		$this->list = $list;
 		$this->model = $model;
 		$this->limit = $limit;
 		$this->offset = $offset;
+		if($order !== null)
+		{
+			$this->order = $order;
+		}
+		if($params !== null)
+		{
+			$this->params = $params;
+		}
 		if(is_object($list) && isset($list->total))
 		{
 			$this->total = $list->total;
