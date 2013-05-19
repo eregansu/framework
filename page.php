@@ -125,6 +125,7 @@ class Page extends Proxy
 		$this->vars['lang'] = isset($this->negotiatedLang) ? $this->negotiatedLang['lang'] : null;
 		$this->vars['explicitExt'] = $this->request->explicitSuffix;
 		$this->vars['explicitLang'] = $this->request->explicitLang;
+		$this->vars['explicitLangExt'] = strlen($this->request->explicitLang) ? ('.' . $this->request->explicitLang) : '';
 		if($this->session)
 		{
 			$this->vars['qusid'] = $this->session->qusid;
