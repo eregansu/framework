@@ -613,8 +613,25 @@ class Proxy extends Router
 			{
 				foreach($r as $k => $value)
 				{
+					if($k == 'Status') continue;
 					$req->header($k, $value);
 				}
+			}
+			if(isset($r['Status']) && strcmp($r['Status'], '200'))
+			{
+				$desc = array(
+					'Failed to negotiate ' . $method . ' with ' . get_class($this),
+					'Requested content types:',
+					);
+				ob_start();
+				print_r($req->types);
+				$desc[] = ob_get_clean();
+				$desc[] = 'Supported content types:';
+				ob_start();
+				print_r($this->supportedTypes);
+				$desc[] = ob_get_clean();
+				$req->header('Allow', implode(', ', $this->supportedMethods));
+				return $this->error($r['Status'], $req, null, implode("\n\n", $desc));			
 			}
 		}
 		else if(!in_array($method, $this->negotiateMethods))
