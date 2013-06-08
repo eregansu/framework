@@ -27,6 +27,8 @@
  * Templated web page generation.
  */
 
+require_once(dirname(__FILE__) . '/template.php');
+
 class Page extends Proxy
 {
 	public $tpl;
