@@ -33,66 +33,49 @@
  * @framework Eregansu
  */
 
-if(defined('WP_CONTENT_URL') && defined('ABSPATH'))
-{
-	/* If we're being included inside WordPress, just perform
-	 * minimal amounts of setup.
-	 */
-	define('EREGANSU_MINIMAL_CORE', true);
-	define('INSTANCE_ROOT', ABSPATH);
-	define('PUBLIC_ROOT', ABSPATH);
-	define('CONFIG_ROOT', INSTANCE_ROOT . 'config/');
-	define('PLATFORM_ROOT', INSTANCE_ROOT . 'eregansu/');
-	define('PLATFORM_LIB', PLATFORM_ROOT . 'lib/');
-	define('PLATFORM_FRAMEWORK', PLATFORM_ROOT . 'framework/');
-	define('MODULES_ROOT', INSTANCE_ROOT . 'app/');
-	
-	global $MODULE_ROOT;
-	
-	if(!isset($MODULE_ROOT))
-	{
-		$MODULE_ROOT = MODULES_ROOT;	
-	}
-}
-
-/* Define our version of uses() before including the core library - this will
- * take precedence.
- */
-if(!function_exists('uses'))
-{ 
-	function uses()
-	{
-		static $_map = array('url' => 'uri', 'xmlns' => 'uri');
-		static $_lib_modules = array('asn1', 'base32', 'cli', 'curl', 'date', 'db', 'dbschema', 'execute', 'ldap', 'mime', 'observer', 'rdf', 'redland', 'request', 'session', 'uri', 'uuid', 'xmlns', 'csv-import', 'xml', 'rdfxmlstream', 'searchengine');
-		
-		$_modules = func_get_args();
-		foreach($_modules as $_mod)
-		{
-			$_mod = isset($_map[$_mod]) ? $_map[$_mod] : $_mod;
-			if(!strcmp($_mod, 'testsuite') || !strcmp($_mod, 'harness'))
-			{
-				require_once(PLATFORM_ROOT . 'testsuite/' . $_mod . '.php');
-			}
-			else if(in_array($_mod, $_lib_modules))
-			{
-				require_once(PLATFORM_LIB . $_mod . '.php');
-			}
-			else
-			{
-				require_once(PLATFORM_FRAMEWORK . $_mod . '.php');
-			}
-		}
-	}
-}
-
 /* Initialise the core library */
 require_once(dirname(__FILE__) . '/../lib/common.php');
+
+if(!defined('EREGANSU_FRAMEWORK'))
+{
+	define('EREGANSU_FRAMEWORK', PLATFORM_ROOT . 'framework/');
+}
 
 if(defined('EREGANSU_MINIMAL_CORE'))
 {
 	/* If requested to, we can stop here */
 	return true;
 }
+
+/* Register modules with uses() */
+$EREGANSU_MODULES['auth'] = EREGANSU_FRAMEWORK . 'auth.php';
+$EREGANSU_MODULES['cli'] = EREGANSU_FRAMEWORK . 'cli.php';
+$EREGANSU_MODULES['error'] = EREGANSU_FRAMEWORK . 'error.php';
+$EREGANSU_MODULES['form'] = EREGANSU_FRAMEWORK . 'form.php';
+$EREGANSU_MODULES['id'] = EREGANSU_FRAMEWORK . 'id.php';
+$EREGANSU_MODULES['model'] = EREGANSU_FRAMEWORK . 'model.php';
+$EREGANSU_MODULES['page'] = EREGANSU_FRAMEWORK . 'page.php';
+$EREGANSU_MODULES['rdfstore'] = EREGANSU_FRAMEWORK . 'rdfstore.php';
+$EREGANSU_MODULES['routable'] = EREGANSU_FRAMEWORK . 'routable.php';
+$EREGANSU_MODULES['store'] = EREGANSU_FRAMEWORK . 'store.php';
+$EREGANSU_MODULES['template'] = EREGANSU_FRAMEWORK . 'template.php';
+
+/* Register classes with the class autoloader */
+$AUTOLOAD_SUBST['${framework}'] = EREGANSU_FRAMEWORK;
+$AUTOLOAD['error'] = dirname(__FILE__) . '/error.php';
+$AUTOLOAD['form'] = dirname(__FILE__) . '/form.php';
+$AUTOLOAD['model'] = dirname(__FILE__) . '/model.php';
+$AUTOLOAD['page'] = dirname(__FILE__) . '/page.php';
+$AUTOLOAD['loader'] = dirname(__FILE__) . '/routable.php';
+$AUTOLOAD['routable'] = dirname(__FILE__) . '/routable.php';
+$AUTOLOAD['redirect'] = dirname(__FILE__) . '/routable.php';
+$AUTOLOAD['router'] = dirname(__FILE__) . '/routable.php';
+$AUTOLOAD['app'] = dirname(__FILE__) . '/routable.php';
+$AUTOLOAD['defaultapp'] = dirname(__FILE__) . '/routable.php';
+$AUTOLOAD['hostnamerouter'] = dirname(__FILE__) . '/routable.php';
+$AUTOLOAD['proxy'] = dirname(__FILE__) . '/routable.php';
+$AUTOLOAD['commandline'] = dirname(__FILE__) . '/routable.php';
+$AUTOLOAD['template'] = dirname(__FILE__) . '/template.php';
 
 if(!defined('EREGANSU_SKIP_CONFIG'))
 {  
@@ -106,7 +89,8 @@ if(!defined('EREGANSU_SKIP_CONFIG'))
 			}
 			if($argv[1] == 'install')
 			{
-				$argv[1] = $_SERVER['argv'][1] = 'setup';
+				/* After running the installer, perform a schema update */
+				$argv[1] = $_SERVER['argv'][1] = 'migrate';
 			}
 		}
 	}
@@ -118,7 +102,6 @@ if(!defined('EREGANSU_SKIP_CONFIG'))
 
 /* Load any plugins which have been named in $PLUGINS */
 
-if(!defined('PLUGINS_ROOT')) define('PLUGINS_ROOT', INSTANCE_ROOT . 'plugins/');
 if(!isset($PLUGINS) || !is_array($PLUGINS)) $PLUGINS = array();
 
 /* Ensure plugins can register observers */
@@ -141,78 +124,6 @@ foreach($PLUGINS as $pluginName)
 		trigger_error('Cannot locate plugin "' . $pluginName . '"', E_USER_NOTICE);
 	}
 }
-
-/* Load the initial set of modules */
-require_once(PLATFORM_LIB . 'request.php');
-require_once(PLATFORM_LIB . 'session.php');
-require_once(PLATFORM_LIB . 'uri.php');
-
-require_once(PLATFORM_FRAMEWORK . 'routable.php');
-require_once(PLATFORM_FRAMEWORK . 'page.php');
-require_once(PLATFORM_FRAMEWORK . 'template.php');
-require_once(PLATFORM_FRAMEWORK . 'error.php');
-
-/* Our global event sink: at the moment just used to implement a callback from
- * the request class which fires when the session has been initialised.
- */
-
-/**
- * @internal
- */
- 
-abstract class PlatformRequestObserver
-{
-	public static function sessionInitialised($req, $session, $data = null)
-	{
-		if(isset($session->user))
-		{
-			if(empty($session->user['ttl']) || $session->user['ttl'] < time())
-			{
-				uses('auth');
-				$session->begin();
-				if(!isset($session->user['scheme']))
-				{
-					unset($session->user);
-				}
-				else if(($engine = Auth::authEngineForScheme($session->user['scheme'])))
-				{
-					$engine->refreshUserData($session->user);
-				}
-				else
-				{
-					unset($session->user);
-				}
-				$session->commit();
-			}
-		}
-		else if(isset($session->userScheme) && isset($session->userUUID))
-		{
-			uses('auth');
-			if(($engine = Auth::authEngineForScheme($session->userScheme)))
-			{
-				if(($data = $engine->retrieveUserData($session->userScheme, $session->userUUID)))
-				{
-					$session->begin();
-					$session->user = $data;
-					$session->commit();
-				}
-			}
-		}
-		else if($req->sapi != 'http')
-		{
-			uses('auth');
-			$engine = Auth::authEngineForScheme('posix');
-			if(($data = $engine->retrieveUserData('posix', posix_geteuid())))
-			{
-				$session->begin();
-				$session->user = $data;
-				$session->commit();
-			}
-		}
-	}
-}
-
-Observers::observe('sessionInitialised', array('PlatformRequestObserver', 'sessionInitialised'));
 
 /* Create an instance of the request class */
 $request = Request::requestForSAPI();
