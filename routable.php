@@ -24,6 +24,8 @@
  * @task Processing requests
  */
 
+uses('request', 'session', 'uri', 'error');
+
 /**
  * The interface implemented by all classes which can process requests.
  */
@@ -451,7 +453,7 @@ class App extends Router
 		{
 			$this->routes['login'] = array('file' => PLATFORM_ROOT . 'login/app.php', 'class' => 'LoginPage', 'fromRoot' => true);
 		}
-		$help = array('file' => PLATFORM_FRAMEWORK . 'cli.php', 'class' => 'CliHelp', 'fromRoot' => true);
+		$help = array('file' => EREGANSU_FRAMEWORK . 'cli.php', 'class' => 'CliHelp', 'fromRoot' => true);
 		if(!isset($this->sapi['cli']['__DEFAULT__']))
 		{
 			$this->sapi['cli']['__DEFAULT__'] = $help;
@@ -501,7 +503,7 @@ class DefaultApp extends App
 		$this->sapi['cli'] = $CLI_ROUTES;
 		$this->sapi['mq'] = $MQ_ROUTES;
 		parent::__construct();
-		$help = array('file' => PLATFORM_FRAMEWORK . 'cli.php', 'class' => 'CliHelp', 'fromRoot' => true);
+		$help = array('file' => EREGANSU_FRAMEWORK . 'cli.php', 'class' => 'CliHelp', 'fromRoot' => true);
 		if(!isset($this->sapi['cli']['__DEFAULT__']))
 		{
 			$this->sapi['cli']['__DEFAULT__'] = $help;
