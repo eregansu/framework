@@ -608,9 +608,9 @@ class Proxy extends Router
 		$r = $req->negotiate($this->supportedMethods, $this->supportedTypes, $this->supportedLangs);
 		$this->negotiatedType = $req->negotiatedType;
 		$this->negotiatedLang = $req->negotiatedLang;
+        $type = isset($this->negotiatedType) ? $this->negotiatedType['type'] : 'text/html';
 		if(is_array($r))
 		{
-			$type = $r['Content-Type'];
 			if($this->sendNegotiateHeaders)
 			{
 				foreach($r as $k => $value)
