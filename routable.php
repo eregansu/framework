@@ -605,9 +605,7 @@ class Proxy extends Router
 				$this->addSupportedTypes($this->objects->serialisations());
 			}								
 		}
-		$r = $req->negotiate($this->supportedMethods, $this->supportedTypes, $this->supportedLangs);
-		$this->negotiatedType = $req->negotiatedType;
-		$this->negotiatedLang = $req->negotiatedLang;
+        $r = $this->negotiate($req);
         $type = isset($this->negotiatedType) ? $this->negotiatedType['type'] : 'text/html';
 		if(is_array($r))
 		{
@@ -666,7 +664,285 @@ class Proxy extends Router
 		$this->sessionObject = null;
 		return $r;
 	}
+    
+	/**
+	 * Attempt to perform content negotiation.
+	 *
+	 * Returns an associative array containing a set of HTTP-style headers,
+	 * or an HTTP status code (method not allowed, not acceptable, etc.) upon
+	 * failure.
+	 */
+    protected function negotiate(Request $req)
+    {
+		$headers = array('Status' => 200, 'Vary' => array());
+
+		if($this->supportedMethods !== null)
+		{
+			if(!in_array($req->method, $this->supportedMethods))
+			{
+				return 405; /* Method Not Allowed */
+			}
+		}
+		$defaultType = null;
+		$defaultLanguage = null;
+		$this->processAcceptList($this->supportedTypes, 'type', $defaultType);
+		$this->processAcceptList($this->supportedLangs, 'lang', $defaultLanguage);
+		$alternates = array();
+		$uri = $req->resource;        
+		/* Perform content negotiation */
+		if($this->supportedTypes !== null)
+		{
+			$l = count($req->suffixes);
+			if($l && ($t = MIME::typeForExt($req->suffixes[$l - 1])) !== null)
+			{
+				$ext = array_pop($req->suffixes);
+				$req->explicitSuffix = '.' . $ext;
+				$t = MIME::typeForExt($ext);
+				$req->types = array(
+					$t => array('type' => $t, 'q' => 1),
+					);
+			}
+			$match = array();
+			foreach($this->supportedTypes as $k => $value)
+			{
+				/* Calculate from the accept headers */
+				if(isset($req->types[$value['type']]))
+				{
+					$value['cq'] = $req->types[$value['type']]['q'];
+				}
+				else if(isset($req->types['*']))
+				{
+					$value['cq'] = $req->types['*']['q'];
+				}
+				else
+				{
+					$value['cq'] = 0;
+				}
+				/* Add the type to the match list with a sortable key */
+				if($value['q'] * $value['cq'])
+				{
+					$key = sprintf('%1.05f-%s', $value['q'] * $value['cq'], $value['type']);					
+					$match[$key] = $value;
+				}
+				/* Finally, if the type isn't hidden, add it to the list of alternates */
+				if(!empty($value['hide']))
+				{
+					continue;
+				}
+				if(isset($value['location']))
+				{
+					/* If there's a specific location, just add it to the alternates list as-is */
+					$alternates[] = '{"' . addslashes($value['location']) . '" ' . floatval($value['q']) . ' {type ' . $value['type'] . '}}';
+					continue;
+				}
+				if(isset($value['ext']))
+				{
+					$ext = '.' . $value['ext'];
+				}
+				else
+				{
+					$ext = MIME::extForType($value['type']);				
+				}
+				if(!strlen($ext))
+				{
+					continue;
+				}
+				if(isset($value['lang']))
+				{
+					$dummy = null;
+					$langList = $value['lang'];
+					$this->processAcceptList($langList, 'lang', $dummy);
+				}
+				else
+				{
+					$langList = $this->supportedLangs;
+				}
+				if($langList !== null)
+				{
+					foreach($langList as $lang)
+					{
+						$lext = '.' . (isset($lang['ext']) ? $lang['ext'] : $lang['lang']);
+						$alternates[] = '{"' . addslashes($uri . $lext . $ext) . '" ' . floatval($value['q']) . ' {type ' . $value['type'] . '}{language ' . $lang['lang'] . '}}';
+					}
+				}
+				else
+				{
+					$alternates[] = '{"' . addslashes($uri . $ext) . '" ' . floatval($value['q']) . ' {type ' . $value['type'] . '}}';
+				}
+			}
+			if(count($alternates))
+			{
+				$headers['Alternates'] = implode(', ', $alternates);
+			}
+			krsort($match);
+			$type = array_shift($match);
+			if($type === null)
+			{
+				if($defaultType !== null)
+				{
+					$type = $defaultType;
+				}
+				else
+				{
+					$headers['Status'] = 406;
+					return $headers;
+				}
+			}
+			$this->negotiatedType = $req->negotiatedType = $type;
+			if(isset($type['lang']))
+			{
+				$this->supportedLangs = $type['lang'];
+				$this->processAcceptList($this->supportedLangs, 'lang', $defaultLanguage);				
+			}
+			$headers['Content-Type'] = $type['type'];
+			$headers['Vary'][] = 'Accept';
+			if(isset($type['location']))
+			{
+				$headers['Content-Location'] = $type['location'];
+			}
+		}
+		/* Transform $languages into a form we can use */
+		/* Perform content-language negotiation */
+		if($this->supportedLangs !== null)
+		{
+            $headers['Vary'][] = 'Accept-Language';
+			if(isset($req->suffixes[0]))
+			{
+				$suf = array_shift($req->suffixes);
+				$lang = null;
+				foreach($this->supportedLangs as $value)
+				{
+					if(!strcmp($suf, $value['lang']))
+					{
+						$lang = $value['lang'];
+						break;
+					}
+				}
+				if($lang === null)
+				{
+					return 406;
+				}
+				$req->explicitLang = $lang;
+				$req->langs = array($lang => array('lang' => $lang, 'q' => 1));
+			}
+			$match = array();
+			foreach($this->supportedLangs as $value)
+			{
+				if(isset($req->langs[$value['lang']]))
+				{
+					$value['cq'] = $req->langs[$value['lang']]['q'];
+				}
+				else if(isset($req->langs['*']))
+				{
+					$value['cq'] = $req->langs['*']['q'];
+				}
+				else
+				{
+					$value['cq'] = 0;
+				}
+				/* Add the type to the match list with a sortable key */
+				if($value['q'] * $value['cq'])
+				{
+					$key = sprintf('%1.05f-%s', $value['q'] * $value['cq'], $value['lang']);					
+					$match[$key] = $value;
+				}
+				if(!empty($value['hide']))
+				{
+					continue;
+				}
+				if(isset($value['location']))
+				{
+					/* If there's a specific location, just add it to the alternates list as-is */
+					$alternates[] = '{"' . addslashes($value['location']) . '" ' . floatval($value['q']) . ' {language ' . $value['lang'] . '}}';
+					continue;
+				}
+				if($this->supportedTypes !== null)
+				{
+					/* Allow type negotiation above to populate the Alternates header */
+					continue;
+				}
+				if(isset($value['ext']))
+				{
+					$ext = '.' . $value['ext'];
+				}
+				else
+				{
+					$ext = '.' . $value['lang'];				
+				}
+				$alternates[] = '{"' . addslashes($uri . $ext) . '" ' . floatval($value['q']) . ' {language ' . $value['lang'] . '}}';
+			}
+			krsort($match);
+			$lang = array_shift($match);
+			if($lang === null)
+			{
+				if(isset($defaultLanguage))
+				{
+					$lang = $defaultLanguage;
+				}
+				else
+				{
+					$headers['Status'] = 406;
+					return $headers;
+				}
+			}
+			$this->negotiatedLang = $req->negotiatedLang = $lang;
+			$headers['Content-Language'] = $lang['lang'];
+			if(isset($lang['location']))
+			{
+				$headers['Content-Location'] = $lang['location'];
+			}			
+		}
+		if(count($alternates))
+		{
+			$headers['Alternates'] = implode(', ', $alternates);
+		}
+		return $headers;    
+    }
 	
+	protected function processAcceptList(&$list, $key, &$default)
+	{
+		if($list === null)
+		{
+			return null;
+		}
+		if(!is_array($list))
+		{
+			$list = array($list);
+		}
+		$def = null;
+		$map = array();
+		foreach($list as $k => $value)
+		{
+			if(!strcmp($k, 'default'))
+			{
+				unset($list[$k]);
+				$def = $value;
+				continue;
+			}
+			if(is_array($value))
+			{
+				if(!isset($value['q']))
+				{
+					$value['q'] = 1;
+				}
+				if(!isset($value[$key]))
+				{
+					$value[$key] = $k;
+				}
+			}
+			else
+			{
+				$value = array('q' => 1, $key => $value);
+			}
+			$list[$k] = $value;
+			$map[$value[$key]] = $value;
+		}
+		if($def !== null && isset($map[$def]))
+		{
+			$default = $map[$def];
+		}
+	}
+    
 	protected function addSupportedTypes($serialisations)
 	{
 		foreach($serialisations as $key => $info)
