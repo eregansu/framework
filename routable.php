@@ -614,6 +614,11 @@ class Proxy extends Router
 				foreach($r as $k => $value)
 				{
 					if($k == 'Status') continue;
+                    if($k == 'Vary')                        
+                    {
+                        $req->vary($value);
+                        continue;
+                    }
 					$req->header($k, $value);
 				}
 			}
@@ -788,6 +793,10 @@ class Proxy extends Router
 					return $headers;
 				}
 			}
+            if(!isset($type['ext']))
+            {
+                $type['ext'] = ltrim(MIME::extForType($type['type']), '.');
+            }
 			$this->negotiatedType = $req->negotiatedType = $type;
 			if(isset($type['lang']))
 			{
@@ -885,6 +894,10 @@ class Proxy extends Router
 					return $headers;
 				}
 			}
+            if(!isset($lang['ext']))
+            {
+                $lang['ext'] = $lang['lang'];
+            }
 			$this->negotiatedLang = $req->negotiatedLang = $lang;
 			$headers['Content-Language'] = $lang['lang'];
 			if(isset($lang['location']))
@@ -896,6 +909,15 @@ class Proxy extends Router
 		{
 			$headers['Alternates'] = implode(', ', $alternates);
 		}
+        if(isset($this->negotiatedLang['ext']))
+        {
+            $uri .= '.' . $this->negotiatedLang['ext'];
+        }
+        if(isset($this->negotiatedType['ext']))
+        {
+            $uri .= '.' . $this->negotiatedType['ext'];
+        }
+        $headers['Content-Location'] = $uri;
 		return $headers;    
     }
 	
