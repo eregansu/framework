@@ -133,7 +133,7 @@ class Model
 		*/
 	}
 	
-	public function query($query)
+	protected function createQuery($query)
 	{
 		if(!isset($this->db))
 		{
@@ -225,12 +225,11 @@ class Model
 				$tname = $tables[$table];
 				$tjoin = '"' . $table . '"."id" = "' . $firstTableName . '"."id"';
 			}
-			if(isset($tlist[$tname]))
+			if(!isset($tlist[$tname]))
 			{
-				continue;
+				$tlist[] = '{' . $tname . '} "' . $table . '"';
+				$where[] = $tjoin;
 			}
-			$tlist[] = '{' . $tname . '} "' . $table . '"';
-			$where[] = $tjoin;
 			foreach($clauses as $c)
 			{
 				$where[] = $c;
@@ -263,6 +262,16 @@ class Model
 			{
 				$qstr .= ' LIMIT ' . $limit;
 			}
+		}
+		return $qstr;	
+	}
+	
+	public function query($query)
+	{
+		$qstr = $this->createQuery($query);
+		if($qstr === null)
+		{
+			return null;
 		}
 		if(($rs = $this->db->query($qstr)))
 		{
